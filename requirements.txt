@@ -1,6 +1,8 @@
 av
+deepface
 mediapipe
 opencv-python
+pandas
 protobuf~=3.19.0
 streamlit
 streamlit_webrtc
