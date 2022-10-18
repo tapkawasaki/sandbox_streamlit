@@ -1,2 +1,6 @@
+av
+mediapipe
+opencv-python
+protobuf~=3.19.0
 streamlit
 streamlit_webrtc
