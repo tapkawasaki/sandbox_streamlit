@@ -1,21 +1,18 @@
-# -*- coding: utf-8 -*-
-
-import mediapipe as mp
-from deepface import DeepFace
-
-import pandas as pd
-import cv2
 import queue
 
 import av
+import cv2
+import mediapipe as mp
+import pandas as pd
 import streamlit as st
-from streamlit_webrtc import (
-    webrtc_streamer, WebRtcMode, RTCConfiguration)
+from deepface import DeepFace
+from streamlit_webrtc import RTCConfiguration, WebRtcMode, webrtc_streamer
 
 RTC_CONFIGURATION = RTCConfiguration(
     {'iceServers': [{'urls': ['stun:stun.l.google.com:19302']}]})
-MEDIA_STREAM_CONSTRAINTS = {'video': {'frameRate': { 'ideal': 5, 'max': 10 }},
-                            'audio': False,}
+MEDIA_STREAM_CONSTRAINTS = {
+    'video': True,
+    'audio': False,}
 
 mp_drawing = mp.solutions.drawing_utils
 mp_face_mesh = mp.solutions.face_mesh
