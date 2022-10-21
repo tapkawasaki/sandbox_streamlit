@@ -3,22 +3,25 @@ import queue
 import av
 import cv2
 import mediapipe as mp
+import pandas as pd
 import streamlit as st
 from streamlit_webrtc import RTCConfiguration, WebRtcMode, webrtc_streamer
-
 
 RTC_CONFIGURATION = RTCConfiguration(
     {'iceServers': [{'urls': ['stun:stun.l.google.com:19302']}]})
 MEDIA_STREAM_CONSTRAINTS = {
-    'video': True,
-    'audio': False, }
+    'video': {'frameRate': {'ideal': 10, 'max': 15}},
+    'audio': False,
+}
 
 mp_drawing = mp.solutions.drawing_utils
 mp_pose = mp.solutions.pose
 
+
 def detect_holistic(image):
+    model_complexity = 1
     with mp_pose.Pose(
-        static_image_mode=True, min_detection_confidence=0.5) as pose:
+            static_image_mode=False, model_complexity=model_complexity, min_detection_confidence=0.5) as pose:
         image.flags.writeable = False
         results = pose.process(cv2.cvtColor(image, cv2.COLOR_BGR2RGB))
     return results
@@ -37,35 +40,36 @@ class VideoProcessor:
         self.result_queue = queue.Queue()
 
     def recv(self, frame):
+        self.hit_threshould = 0.15
         img = frame.to_ndarray(format='bgr24')
+        annotated_img = img.copy()
         results = detect_holistic(img)
         if results.pose_landmarks is not None:
             hands = [results.pose_landmarks.landmark[mp_pose.PoseLandmark.LEFT_THUMB].x,
-                    results.pose_landmarks.landmark[mp_pose.PoseLandmark.LEFT_THUMB].y,
-                    results.pose_landmarks.landmark[mp_pose.PoseLandmark.RIGHT_THUMB].x,
-                    results.pose_landmarks.landmark[mp_pose.PoseLandmark.RIGHT_THUMB].y]
-            if hands[0] <= 0.1 or hands[0] >= 0.9:
-                cv2.putText(img, 'hit!', (
-                    int(hands[0]*img.shape[0]), int(hands[1]*img.shape[1])),
-                    cv2.FONT_HERSHEY_PLAIN, 10, (0, 0, 255), 5, cv2.LINE_AA)
-            elif hands[1] <= 0.1 or hands[1] >= 0.9:
-                cv2.putText(img, 'hit!', (
-                    int(hands[0]*img.shape[0]), int(hands[1]*img.shape[1])),
-                    cv2.FONT_HERSHEY_PLAIN, 10, (0, 0, 255), 5, cv2.LINE_AA)
-            elif hands[2] <= 0.1 or hands[2] >= 0.9:
-                cv2.putText(img, 'hit!', (
-                    int(hands[2]*img.shape[0]), int(hands[3]*img.shape[1])),
-                    cv2.FONT_HERSHEY_PLAIN, 10, (0, 0, 255), 5, cv2.LINE_AA)
-            elif hands[3] <= 0.1 or hands[3] >= 0.9:
-                cv2.putText(img, 'hit!', (
-                    int(hands[2]*img.shape[0]), int(hands[3]*img.shape[1])),
-                    cv2.FONT_HERSHEY_PLAIN, 10, (255, 255, 255), 5, cv2.LINE_AA)
+                     results.pose_landmarks.landmark[mp_pose.PoseLandmark.LEFT_THUMB].y,
+                     results.pose_landmarks.landmark[mp_pose.PoseLandmark.LEFT_THUMB].z,
+                     results.pose_landmarks.landmark[mp_pose.PoseLandmark.RIGHT_THUMB].x,
+                     results.pose_landmarks.landmark[mp_pose.PoseLandmark.RIGHT_THUMB].y,
+                     results.pose_landmarks.landmark[mp_pose.PoseLandmark.RIGHT_THUMB].z]
+            if hands[0] <= self.hit_threshould or hands[0] >= 1-self.hit_threshould or\
+                    hands[1] <= self.hit_threshould or hands[1] >= 1-self.hit_threshould:
+                cv2.putText(annotated_img, 'Hit!', (
+                    int(hands[0]*annotated_img.shape[0]), int(hands[1]*annotated_img.shape[1])),
+                    cv2.FONT_HERSHEY_PLAIN, 5, (0, 0, 255), 5, cv2.LINE_AA)
+            if hands[3] <= self.hit_threshould or hands[3] >= 1-self.hit_threshould or\
+                    hands[4] <= self.hit_threshould or hands[4] >= 1-self.hit_threshould:
+                cv2.putText(annotated_img, 'Hit!', (
+                    int(hands[3]*annotated_img.shape[0]), int(hands[4]*annotated_img.shape[1])),
+                    cv2.FONT_HERSHEY_PLAIN, 5, (0, 0, 255), 5, cv2.LINE_AA)
+            if hands[2] <= -2 or hands[5] <= -2:
+                cv2.putText(annotated_img, 'Punch!', (
+                    int(annotated_img.shape[0]/2), int(annotated_img.shape[1]/2)),
+                    cv2.FONT_HERSHEY_PLAIN, 5, (128, 0, 128), 5, cv2.LINE_AA)
             self.result_queue.put(hands)
-            annotated_img = plot_to_img(img, results)
-        else:
-            annotated_img = img
-        img_dst = cv2.hconcat([img, annotated_img])
+            annotated_img = plot_to_img(annotated_img, results)
+        img_dst = annotated_img#cv2.hconcat([img, annotated_img])
         return av.VideoFrame.from_ndarray(img_dst, format='bgr24')
+
 
 if __name__ == '__main__':
     st.title('ボクシング')
@@ -77,6 +81,33 @@ if __name__ == '__main__':
         async_processing=True,
         media_stream_constraints=MEDIA_STREAM_CONSTRAINTS,
         video_html_attrs={
-            'style': {'width': '75%', 'margin': '0 auto', 'border': '1px black solid'},
+            'style': {'width': '100%', 'margin': '0 auto', 'border': '1px black solid'},
             'controls': False,
             'autoPlay': True, },)
+
+    if webrtc_ctx.state.playing:
+        temp = []
+        labels_placeholder = st.empty()
+        while True:
+            df = pd.DataFrame(
+                index=['x', 'y', 'z'],
+                columns=['Left', 'Right'])
+            if webrtc_ctx.video_processor:
+                try:
+                    hands = webrtc_ctx.video_processor.result_queue.get(
+                        timeout=1.0
+                    )
+                    temp.append(hands)
+                    print(len(temp))
+                    if hands:
+                        df['Left'] = hands[:3]
+                        df['Right'] = hands[3:]
+
+                    else:
+                        df['Left'] = ['NULL']*3
+                        df['Right'] = ['NULL']*3
+                except queue.Empty:
+                    pass
+                labels_placeholder.table(df)
+            else:
+                break
