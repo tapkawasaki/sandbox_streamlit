@@ -3,6 +3,7 @@ import queue
 import av
 import cv2
 import mediapipe as mp
+import numpy as np
 import pandas as pd
 import streamlit as st
 from streamlit_webrtc import RTCConfiguration, WebRtcMode, webrtc_streamer
@@ -61,10 +62,6 @@ class VideoProcessor:
                 cv2.putText(annotated_img, 'Hit!', (
                     int(hands[3]*annotated_img.shape[0]), int(hands[4]*annotated_img.shape[1])),
                     cv2.FONT_HERSHEY_PLAIN, 5, (0, 0, 255), 5, cv2.LINE_AA)
-            if hands[2] <= -2 or hands[5] <= -2:
-                cv2.putText(annotated_img, 'Punch!', (
-                    int(annotated_img.shape[0]/2), int(annotated_img.shape[1]/2)),
-                    cv2.FONT_HERSHEY_PLAIN, 5, (128, 0, 128), 5, cv2.LINE_AA)
             self.result_queue.put(hands)
             annotated_img = plot_to_img(annotated_img, results)
         img_dst = annotated_img#cv2.hconcat([img, annotated_img])
@@ -90,7 +87,7 @@ if __name__ == '__main__':
         labels_placeholder = st.empty()
         while True:
             df = pd.DataFrame(
-                index=['x', 'y', 'z'],
+                index=['x', 'y', 'z', 'speed'],
                 columns=['Left', 'Right'])
             if webrtc_ctx.video_processor:
                 try:
@@ -98,14 +95,28 @@ if __name__ == '__main__':
                         timeout=1.0
                     )
                     temp.append(hands)
-                    print(len(temp))
+                    if len(temp) >= 3:
+                        temp.pop(0)
+                    if len(temp) == 1:
+                        left_0 = np.array((temp[0][0], temp[0][1]))
+                        left_1 = left_0
+                        right_0 = np.array((temp[0][3], temp[0][4]))
+                        right_1 = right_0
+                    else:
+                        left_0 = np.array((temp[0][0], temp[0][1]))
+                        left_1 = np.array((temp[1][0], temp[1][1]))
+                        right_0 = np.array((temp[0][3], temp[0][4]))
+                        right_1 = np.array((temp[1][3], temp[1][4]))
+                    dist_left = np.linalg.norm(left_0-left_1)
+                    dist_right = np.linalg.norm(right_0-right_1)
+
                     if hands:
-                        df['Left'] = hands[:3]
-                        df['Right'] = hands[3:]
+                        df['Left'] = hands[:3] + [dist_left]
+                        df['Right'] = hands[3:] + [dist_right]
 
                     else:
-                        df['Left'] = ['NULL']*3
-                        df['Right'] = ['NULL']*3
+                        df['Left'] = [0]*4
+                        df['Right'] = [0]*4
                 except queue.Empty:
                     pass
                 labels_placeholder.table(df)
