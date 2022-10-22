@@ -15,10 +15,12 @@ MEDIA_STREAM_CONSTRAINTS = {
     'audio': False,
 }
 
+
 mp_drawing = mp.solutions.drawing_utils
 mp_pose = mp.solutions.pose
 
 
+@st.cache(ttl=60*1)
 def detect_holistic(image):
     model_complexity = 1
     with mp_pose.Pose(
@@ -64,7 +66,7 @@ class VideoProcessor:
                     cv2.FONT_HERSHEY_PLAIN, 5, (0, 0, 255), 5, cv2.LINE_AA)
             self.result_queue.put(hands)
             annotated_img = plot_to_img(annotated_img, results)
-        img_dst = annotated_img#cv2.hconcat([img, annotated_img])
+        img_dst = annotated_img
         return av.VideoFrame.from_ndarray(img_dst, format='bgr24')
 
 
@@ -109,11 +111,9 @@ if __name__ == '__main__':
                         right_1 = np.array((temp[1][3], temp[1][4]))
                     dist_left = np.linalg.norm(left_0-left_1)
                     dist_right = np.linalg.norm(right_0-right_1)
-
                     if hands:
                         df['Left'] = hands[:3] + [dist_left]
                         df['Right'] = hands[3:] + [dist_right]
-
                     else:
                         df['Left'] = [0]*4
                         df['Right'] = [0]*4
