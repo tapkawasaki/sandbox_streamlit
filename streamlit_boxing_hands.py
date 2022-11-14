@@ -2,8 +2,10 @@ import queue
 
 import av
 import cv2
+import json
 import mediapipe as mp
 import numpy as np
+import os
 import pandas as pd
 import streamlit as st
 from streamlit_webrtc import RTCConfiguration, WebRtcMode, webrtc_streamer
@@ -54,16 +56,20 @@ class VideoProcessor:
                      results.pose_landmarks.landmark[mp_pose.PoseLandmark.RIGHT_THUMB].x,
                      results.pose_landmarks.landmark[mp_pose.PoseLandmark.RIGHT_THUMB].y,
                      results.pose_landmarks.landmark[mp_pose.PoseLandmark.RIGHT_THUMB].z]
-            if hands[0] <= self.hit_threshould or hands[0] >= 1-self.hit_threshould or\
-                    hands[1] <= self.hit_threshould or hands[1] >= 1-self.hit_threshould:
-                cv2.putText(annotated_img, 'Hit!', (
+            if os.path.isfile('./temp.json'):
+                try:
+                    with open('./temp.json') as f:
+                        speed = json.load(f)
+                        left = speed['left']
+                        right = speed['right']
+                except:
+                    left, right = 0, 0
+                cv2.putText(annotated_img, str(round(left * 100, 2)), (
                     int(hands[0]*annotated_img.shape[0]), int(hands[1]*annotated_img.shape[1])),
-                    cv2.FONT_HERSHEY_PLAIN, 5, (0, 0, 255), 5, cv2.LINE_AA)
-            if hands[3] <= self.hit_threshould or hands[3] >= 1-self.hit_threshould or\
-                    hands[4] <= self.hit_threshould or hands[4] >= 1-self.hit_threshould:
-                cv2.putText(annotated_img, 'Hit!', (
+                    cv2.FONT_HERSHEY_PLAIN, 3, (0, 0, 255), 5, cv2.LINE_AA)
+                cv2.putText(annotated_img, str(round(right * 100, 2)), (
                     int(hands[3]*annotated_img.shape[0]), int(hands[4]*annotated_img.shape[1])),
-                    cv2.FONT_HERSHEY_PLAIN, 5, (0, 0, 255), 5, cv2.LINE_AA)
+                    cv2.FONT_HERSHEY_PLAIN, 3, (255, 0, 0), 5, cv2.LINE_AA)
             self.result_queue.put(hands)
             annotated_img = plot_to_img(annotated_img, results)
         img_dst = annotated_img
@@ -117,6 +123,9 @@ if __name__ == '__main__':
                     else:
                         df['Left'] = [0]*4
                         df['Right'] = [0]*4
+                    str = {'left': dist_left, 'right': dist_right}
+                    with open('./temp.json', 'w') as f:
+                        json.dump(str, f, ensure_ascii=False, indent=4)
                 except queue.Empty:
                     pass
                 labels_placeholder.table(df)
