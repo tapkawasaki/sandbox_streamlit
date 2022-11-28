@@ -22,7 +22,7 @@ mp_pose = mp.solutions.pose
 
 @st.cache(ttl=60*1)
 def detect_holistic(image):
-    model_complexity = 1
+    model_complexity = 0
     with mp_pose.Pose(
             static_image_mode=False, model_complexity=model_complexity, min_detection_confidence=0.5) as pose:
         image.flags.writeable = False
