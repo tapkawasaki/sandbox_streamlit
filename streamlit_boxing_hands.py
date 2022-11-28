@@ -54,6 +54,8 @@ class VideoProcessor:
                      results.pose_landmarks.landmark[mp_pose.PoseLandmark.RIGHT_THUMB].x,
                      results.pose_landmarks.landmark[mp_pose.PoseLandmark.RIGHT_THUMB].y,
                      results.pose_landmarks.landmark[mp_pose.PoseLandmark.RIGHT_THUMB].z]
+            nose = [results.pose_landmarks.landmark[mp_pose.PoseLandmark.NOSE].x,
+                    results.pose_landmarks.landmark[mp_pose.PoseLandmark.NOSE].y]
             if hands[0] <= self.hit_threshould or hands[0] >= 1-self.hit_threshould or\
                     hands[1] <= self.hit_threshould or hands[1] >= 1-self.hit_threshould:
                 cv2.putText(annotated_img, 'Hit!', (
@@ -64,6 +66,10 @@ class VideoProcessor:
                 cv2.putText(annotated_img, 'Hit!', (
                     int(hands[3]*annotated_img.shape[0]), int(hands[4]*annotated_img.shape[1])),
                     cv2.FONT_HERSHEY_PLAIN, 5, (0, 0, 255), 5, cv2.LINE_AA)
+            if nose[1] >= hands[1] and nose[1] >= hands[4]:
+                cv2.putText(annotated_img, 'Guard', (
+                    int(0.5*annotated_img.shape[0]), int(0.5*annotated_img.shape[1])),
+                    cv2.FONT_HERSHEY_PLAIN, 6, (0, 255, 255), 5, cv2.LINE_AA)
             self.result_queue.put(hands)
             annotated_img = plot_to_img(annotated_img, results)
         img_dst = annotated_img
